@@ -1,0 +1,708 @@
+import * as React from "react"
+import { addPropertyControls, ControlType, useIsStaticRenderer } from "framer"
+import { motion, useInView } from "framer-motion"
+
+type Variant = {
+    name: "Obsidian" | "Arctic" | "Cobalt"
+    shell: string
+    shellDark: string
+    metal: string
+    cushion: string
+    accent: string
+}
+
+type HotspotData = {
+    id: string
+    title: string
+    body: string
+    x: string
+    y: string
+    target: "leftCup" | "rightCup" | "headband" | "core"
+}
+
+interface MyComponentProps {
+    minHeight?: string
+    primaryAccent?: string
+    theme?: "Nocturne" | "Arctic"
+}
+
+const variants: Variant[] = [
+    {
+        name: "Obsidian",
+        shell: "#1A1D24",
+        shellDark: "#0A0D12",
+        metal: "#99A1AD",
+        cushion: "#171A20",
+        accent: "#6D7CFF",
+    },
+    {
+        name: "Arctic",
+        shell: "#DCE2E8",
+        shellDark: "#9FAAB7",
+        metal: "#F4F8FF",
+        cushion: "#BEC8D4",
+        accent: "#8AA1FF",
+    },
+    {
+        name: "Cobalt",
+        shell: "#3656D6",
+        shellDark: "#1A2D88",
+        metal: "#CAD3E8",
+        cushion: "#16235F",
+        accent: "#89A1FF",
+    },
+]
+
+const hotspots: HotspotData[] = [
+    {
+        id: "anc",
+        title: "Adaptive ANC",
+        body: "Four mics continuously profile ambient noise and adjust cancellation without coloration.",
+        x: "21%",
+        y: "56%",
+        target: "leftCup",
+    },
+    {
+        id: "drivers",
+        title: "40 mm Drivers",
+        body: "Custom bio-cellulose drivers tuned for low distortion and lifelike transient response.",
+        x: "50%",
+        y: "39%",
+        target: "core",
+    },
+    {
+        id: "cushions",
+        title: "Memory Foam Cushions",
+        body: "Slow-rebound foam distributes pressure and seals gently for long listening sessions.",
+        x: "79%",
+        y: "57%",
+        target: "rightCup",
+    },
+    {
+        id: "battery",
+        title: "38-hour Battery",
+        body: "High-density cells provide all-day endurance with smart low-power signal management.",
+        x: "50%",
+        y: "73%",
+        target: "headband",
+    },
+]
+
+function CTAButton(props: {
+    label: string
+    secondary?: boolean
+    accent: string
+    ariaLabel: string
+}) {
+    const { label, secondary, accent, ariaLabel } = props
+    return (
+        <button
+            aria-label={ariaLabel}
+            style={{
+                minHeight: 46,
+                padding: "12px 18px",
+                borderRadius: 12,
+                border: secondary ? "1px solid rgba(255,255,255,.22)" : "none",
+                background: secondary
+                    ? "rgba(255,255,255,.05)"
+                    : `linear-gradient(135deg, ${accent}, #445bff)`,
+                color: "#FFFFFF",
+                fontWeight: 600,
+                fontSize: 14,
+                letterSpacing: "-0.01em",
+                cursor: "pointer",
+                transition: "transform .2s ease, filter .2s ease, background .2s ease",
+            }}
+        >
+            {label}
+        </button>
+    )
+}
+
+function ProductVariantSelector(props: {
+    variants: Variant[]
+    selected: number
+    onSelect: (index: number) => void
+    accent: string
+}) {
+    return (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {props.variants.map((variant, index) => {
+                const active = index === props.selected
+                return (
+                    <button
+                        key={variant.name}
+                        onClick={() => props.onSelect(index)}
+                        aria-label={`Select ${variant.name} variant`}
+                        aria-pressed={active}
+                        style={{
+                            minHeight: 44,
+                            padding: "10px 14px",
+                            borderRadius: 999,
+                            border: active
+                                ? `1px solid ${props.accent}`
+                                : "1px solid rgba(255,255,255,.2)",
+                            color: "#FFFFFF",
+                            background: active
+                                ? "rgba(255,255,255,.16)"
+                                : "rgba(255,255,255,.05)",
+                            cursor: "pointer",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            transition: "all .2s ease",
+                        }}
+                    >
+                        {variant.name}
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
+
+function ProductHotspot(props: {
+    data: HotspotData
+    active: boolean
+    onClick: () => void
+    accent: string
+}) {
+    return (
+        <button
+            onClick={props.onClick}
+            aria-label={`Open ${props.data.title} details`}
+            style={{
+                position: "absolute",
+                left: props.data.x,
+                top: props.data.y,
+                transform: "translate(-50%,-50%)",
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,.8)",
+                background: props.active ? props.accent : "rgba(255,255,255,.08)",
+                color: "#FFFFFF",
+                cursor: "pointer",
+                boxShadow: props.active
+                    ? `0 0 0 8px ${props.accent}33, 0 8px 24px rgba(0,0,0,.4)`
+                    : "0 8px 24px rgba(0,0,0,.4)",
+                transition: "all .2s ease",
+            }}
+        >
+            +
+        </button>
+    )
+}
+
+function ProductVisual(props: {
+    variant: Variant
+    accent: string
+    activeTarget: HotspotData["target"] | null
+    reducedMotion: boolean
+    pointerRotate: { x: number; y: number }
+    onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => void
+    onPointerLeave: () => void
+    onHotspotClick: (id: string) => void
+    activeHotspot: string | null
+}) {
+    const { variant, activeTarget, accent, reducedMotion, pointerRotate } = props
+    const glowFor = React.useCallback(
+        (target: HotspotData["target"]) =>
+            activeTarget === target ? `drop-shadow(0 0 18px ${accent})` : "none",
+        [activeTarget, accent]
+    )
+
+    return (
+        <div
+            onPointerMove={props.onPointerMove}
+            onPointerLeave={props.onPointerLeave}
+            style={{
+                position: "relative",
+                width: "100%",
+                aspectRatio: "16 / 11",
+                borderRadius: 28,
+                overflow: "hidden",
+                transformStyle: "preserve-3d",
+                transform: reducedMotion
+                    ? "none"
+                    : `rotateX(${pointerRotate.x}deg) rotateY(${pointerRotate.y}deg)`,
+                transition: "transform .25s ease",
+                background:
+                    "radial-gradient(circle at 20% 20%, rgba(255,255,255,.08), transparent 26%), radial-gradient(circle at 78% 24%, rgba(121,138,255,.22), transparent 34%), linear-gradient(160deg,#0E1118,#050608)",
+                boxShadow:
+                    "inset 0 1px 0 rgba(255,255,255,.12), 0 40px 70px rgba(0,0,0,.5)",
+                transitionProperty: "transform, background, box-shadow",
+                transitionDuration: ".25s, .35s, .35s",
+            }}
+        >
+            <svg viewBox="0 0 760 540" style={{ width: "100%", height: "100%" }}>
+                <defs>
+                    <linearGradient id="band" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor={variant.metal} />
+                        <stop offset=".3" stopColor={variant.shell} />
+                        <stop offset=".7" stopColor={variant.shellDark} />
+                        <stop offset="1" stopColor={variant.shell} />
+                    </linearGradient>
+                    <linearGradient id="cup" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor={variant.shell} />
+                        <stop offset=".52" stopColor={variant.shellDark} />
+                        <stop offset="1" stopColor={variant.shell} />
+                    </linearGradient>
+                    <radialGradient id="pad" cx=".38" cy=".35">
+                        <stop offset="0" stopColor={variant.cushion} />
+                        <stop offset=".8" stopColor="#06080C" />
+                    </radialGradient>
+                </defs>
+                <path
+                    d="M215 270 C215 85 545 85 545 270"
+                    fill="none"
+                    stroke="url(#band)"
+                    strokeWidth="42"
+                    strokeLinecap="round"
+                    style={{ filter: glowFor("headband") }}
+                />
+                <path
+                    d="M228 267 C231 134 530 134 532 267"
+                    fill="none"
+                    stroke="rgba(255,255,255,.22)"
+                    strokeWidth="3"
+                />
+                <g style={{ filter: glowFor("leftCup") }}>
+                    <rect x="172" y="220" width="150" height="220" rx="74" fill="url(#cup)" />
+                    <rect x="197" y="250" width="100" height="162" rx="50" fill="url(#pad)" />
+                </g>
+                <g style={{ filter: glowFor("rightCup") }}>
+                    <rect x="438" y="220" width="150" height="220" rx="74" fill="url(#cup)" />
+                    <rect x="463" y="250" width="100" height="162" rx="50" fill="url(#pad)" />
+                </g>
+                <ellipse
+                    cx="380"
+                    cy="281"
+                    rx="90"
+                    ry="52"
+                    fill="rgba(255,255,255,.03)"
+                    style={{ filter: glowFor("core") }}
+                />
+                <path d="M182 230 Q145 198 165 140" stroke={accent} strokeOpacity=".45" strokeWidth="3" fill="none" />
+                <path d="M578 230 Q615 198 595 140" stroke={accent} strokeOpacity=".35" strokeWidth="3" fill="none" />
+            </svg>
+
+            {hotspots.map((spot) => (
+                <ProductHotspot
+                    key={spot.id}
+                    data={spot}
+                    active={spot.id === props.activeHotspot}
+                    onClick={() => props.onHotspotClick(spot.id)}
+                    accent={accent}
+                />
+            ))}
+        </div>
+    )
+}
+
+function FeatureCard(props: { title: string; body: string }) {
+    return (
+        <article
+            style={{
+                border: "1px solid rgba(255,255,255,.14)",
+                borderRadius: 16,
+                padding: 16,
+                background: "rgba(255,255,255,.03)",
+                transition: "background .35s ease, border-color .35s ease",
+            }}
+        >
+            <h3 style={{ margin: 0, fontSize: 15, color: "#FFFFFF" }}>{props.title}</h3>
+            <p
+                style={{
+                    margin: "8px 0 0",
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    color: "#BAC0CB",
+                }}
+            >
+                {props.body}
+            </p>
+        </article>
+    )
+}
+
+function SpecificationItem(props: {
+    value: string
+    label: string
+}) {
+    return (
+        <div
+            style={{
+                padding: "12px 0",
+                borderBottom: "1px solid rgba(255,255,255,.1)",
+                transition: "border-color .35s ease",
+            }}
+        >
+            <div
+                style={{
+                    fontSize: 23,
+                    letterSpacing: "-.03em",
+                    color: "#FFFFFF",
+                }}
+            >
+                {props.value}
+            </div>
+            <div style={{ fontSize: 13, color: "#AFB5C0" }}>{props.label}</div>
+        </div>
+    )
+}
+
+function RatingPanel(props: {
+    accent: string
+    reducedMotion: boolean
+}) {
+    const ref = React.useRef<HTMLDivElement | null>(null)
+    const inView = useInView(ref, { once: true, amount: 0.3 })
+    const items = [
+        ["Sound Quality", 96],
+        ["Comfort", 93],
+        ["Noise Control", 91],
+    ] as const
+    return (
+        <div
+            ref={ref}
+            style={{
+                borderRadius: 20,
+                border: "1px solid rgba(255,255,255,.13)",
+                padding: 22,
+                background: "rgba(255,255,255,.03)",
+                transition: "background .35s ease, border-color .35s ease",
+            }}
+        >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                    <div style={{ fontSize: 42, color: "#FFFFFF", letterSpacing: "-.05em", lineHeight: 1 }}>4.8 / 5</div>
+                    <div style={{ color: "#FFFFFF", letterSpacing: 2 }}>★★★★★</div>
+                    <div style={{ fontSize: 12, color: "#AEB5C0", marginTop: 4 }}>1,284 reviews</div>
+                </div>
+                <div style={{ alignSelf: "flex-start", fontSize: 11, color: "#DCE3F5", padding: "7px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,.24)" }}>
+                    TOP PICK
+                </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+                {items.map(([label, val]) => (
+                    <div key={label} style={{ marginBottom: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#C3CAD6", marginBottom: 5 }}>
+                            <span>{label}</span>
+                            <span>{val}%</span>
+                        </div>
+                        <div style={{ height: 7, borderRadius: 99, background: "rgba(255,255,255,.14)", overflow: "hidden" }}>
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: inView || props.reducedMotion ? `${val}%` : 0 }}
+                                transition={{ duration: props.reducedMotion ? 0 : 0.7 }}
+                                style={{ height: "100%", background: props.accent }}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+export default function HeadphoneShowcase(props: MyComponentProps) {
+    const {
+        minHeight = "100vh",
+        primaryAccent = "#6D7CFF",
+        theme = "Nocturne",
+    } = props
+    const isStatic = useIsStaticRenderer()
+    const pageBackground = theme === "Arctic"
+        ? "radial-gradient(circle at 14% 2%, rgba(122,156,255,.24), transparent 28%), radial-gradient(circle at 86% 14%, rgba(159,187,255,.2), transparent 26%), linear-gradient(180deg, #F5F8FF 0%, #EBF1FC 100%)"
+        : "radial-gradient(circle at 15% 0%, rgba(107,123,255,.16), transparent 30%), radial-gradient(circle at 85% 15%, rgba(88,105,255,.1), transparent 28%), #06080D"
+    const [selected, setSelected] = React.useState(0)
+    const [activeHotspotId, setActiveHotspotId] = React.useState<string | null>(null)
+    const [reducedMotion, setReducedMotion] = React.useState(false)
+    const [desktopParallax, setDesktopParallax] = React.useState(false)
+    const [rotate, setRotate] = React.useState({ x: 0, y: 0 })
+    const selectedVariant = variants[selected]
+    const activeHotspot = hotspots.find((h) => h.id === activeHotspotId) ?? null
+
+    React.useEffect(() => {
+        if (typeof window !== "undefined") {
+            const reduce = window.matchMedia("(prefers-reduced-motion: reduce)")
+            const desktop = window.matchMedia("(min-width: 769px)")
+            const update = () => {
+                React.startTransition(() => {
+                    setReducedMotion(reduce.matches)
+                    setDesktopParallax(desktop.matches)
+                })
+            }
+            update()
+            reduce.addEventListener("change", update)
+            desktop.addEventListener("change", update)
+            return () => {
+                reduce.removeEventListener("change", update)
+                desktop.removeEventListener("change", update)
+            }
+        } else {
+            React.startTransition(() => {
+                setReducedMotion(true)
+                setDesktopParallax(false)
+            })
+        }
+        return undefined
+    }, [])
+
+    React.useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                React.startTransition(() => setActiveHotspotId(null))
+            }
+        }
+        if (typeof window !== "undefined") {
+            window.addEventListener("keydown", onKey)
+            return () => window.removeEventListener("keydown", onKey)
+        }
+        return undefined
+    }, [])
+
+    const onPointerMove = React.useCallback(
+        (event: React.PointerEvent<HTMLDivElement>) => {
+            if (!desktopParallax || reducedMotion || isStatic) return
+            const rect = event.currentTarget.getBoundingClientRect()
+            const x = (event.clientX - rect.left) / rect.width - 0.5
+            const y = (event.clientY - rect.top) / rect.height - 0.5
+            React.startTransition(() => setRotate({ x: y * -5, y: x * 7 }))
+        },
+        [desktopParallax, reducedMotion, isStatic]
+    )
+
+    const onPointerLeave = React.useCallback(() => {
+        React.startTransition(() => setRotate({ x: 0, y: 0 }))
+    }, [])
+
+    return (
+        <main
+            className="auralis-launch"
+            style={{
+                position: "relative",
+                width: "100%",
+                minHeight,
+                overflowX: "hidden",
+                background: pageBackground,
+                color: "#FFFFFF",
+                fontFamily:
+                    "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+                transition: "background .35s ease, color .35s ease",
+            }}
+        >
+            <section style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "clamp(18px,4vw,60px)" }}>
+                <div className="heroGrid" style={{ display: "grid", gridTemplateColumns: "minmax(0,.9fr) minmax(0,1.1fr)", gap: 28, alignItems: "center" }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div
+                            style={{
+                                letterSpacing: ".24em",
+                                fontSize: 11,
+                                color: "#9CA4B2",
+                            }}
+                        >
+                            AURALIS / ONE
+                        </div>
+                        <h1 style={{ margin: "10px 0 12px", fontSize: "clamp(40px,8vw,78px)", letterSpacing: "-.06em", lineHeight: 0.94 }}>
+                            Designed for the long listen.
+                        </h1>
+                        <p
+                            style={{
+                                margin: 0,
+                                color: "#B3BBC7",
+                                lineHeight: 1.55,
+                                maxWidth: 520,
+                            }}
+                        >
+                            A premium wireless over-ear headphone focused on immersive sound, intelligent noise control, and all-day comfort.
+                        </p>
+                        <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+                            <CTAButton accent={primaryAccent} label="Explore Auralis" ariaLabel="Pre-order Auralis One" />
+                            <CTAButton secondary accent={primaryAccent} label="View specifications" ariaLabel="Watch Auralis keynote" />
+                        </div>
+                        <div style={{ marginTop: 18 }}>
+                            <ProductVariantSelector
+                                variants={variants}
+                                selected={selected}
+                                onSelect={(index) => {
+                                    React.startTransition(() => {
+                                        setSelected(index)
+                                        setActiveHotspotId(null)
+                                    })
+                                }}
+                                accent={primaryAccent}
+                            />
+                        </div>
+                        <div
+                            style={{
+                                marginTop: 10,
+                                color: "#96A0AF",
+                                fontSize: 13,
+                            }}
+                        >
+                            Finish: {selectedVariant.name}
+                        </div>
+                    </div>
+
+                    <div style={{ position: "relative", minWidth: 0 }}>
+                        <motion.div
+                            key={selectedVariant.name}
+                            initial={{ opacity: 0.7, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: reducedMotion ? 0 : 0.3 }}
+                        >
+                            <ProductVisual
+                                variant={selectedVariant}
+                                accent={primaryAccent}
+                                activeTarget={activeHotspot?.target ?? null}
+                                reducedMotion={reducedMotion || !desktopParallax}
+                                pointerRotate={rotate}
+                                onPointerMove={onPointerMove}
+                                onPointerLeave={onPointerLeave}
+                                onHotspotClick={(id) =>
+                                    React.startTransition(() =>
+                                        setActiveHotspotId((prev) => (prev === id ? null : id))
+                                    )
+                                }
+                                activeHotspot={activeHotspotId}
+                            />
+                        </motion.div>
+                        <motion.aside
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: activeHotspot ? 1 : 0, y: activeHotspot ? 0 : 8 }}
+                            transition={{ duration: reducedMotion ? 0 : 0.2 }}
+                            style={{
+                                position: "absolute",
+                                left: 14,
+                                right: 14,
+                                bottom: 14,
+                                minHeight: 72,
+                                borderRadius: 12,
+                                border: "1px solid rgba(255,255,255,.18)",
+                                background: "rgba(9,12,20,.82)",
+                                backdropFilter: "blur(8px)",
+                                padding: 12,
+                                pointerEvents: activeHotspot ? "auto" : "none",
+                                transition: "background .35s ease, border-color .35s ease",
+                            }}
+                        >
+                            {activeHotspot && (
+                                <>
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                        <strong style={{ fontSize: 14 }}>{activeHotspot.title}</strong>
+                                        <button
+                                            onClick={() => React.startTransition(() => setActiveHotspotId(null))}
+                                            aria-label="Close feature panel"
+                                            style={{
+                                                minWidth: 44,
+                                                minHeight: 28,
+                                                borderRadius: 8,
+                                                border: "1px solid rgba(255,255,255,.24)",
+                                                background: "transparent",
+                                                color: "#FFFFFF",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
+                                    <p
+                                        style={{
+                                            margin: "6px 0 0",
+                                            fontSize: 13,
+                                            color: "#C3C9D4",
+                                            lineHeight: 1.4,
+                                        }}
+                                    >
+                                        {activeHotspot.body}
+                                    </p>
+                                </>
+                            )}
+                        </motion.aside>
+                    </div>
+                </div>
+            </section>
+
+            <section style={{ maxWidth: 1180, margin: "0 auto", padding: "0 clamp(18px,4vw,60px) 24px" }}>
+                <div style={{ fontSize: 11, letterSpacing: ".18em", color: "#9CA4B2" }}>ENGINEERED FOR IMMERSION</div>
+                <div className="featureGrid" style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12 }}>
+                    <FeatureCard title="Adaptive ANC" body="Real-time environmental sensing suppresses distraction while preserving musical detail." />
+                    <FeatureCard title="40 mm custom drivers" body="Precision-tuned drivers deliver deep, articulate bass and effortless clarity." />
+                    <FeatureCard title="Spatial audio" body="Immersive scene rendering places instruments and vocals in dimensional space." />
+                    <FeatureCard title="38-hour battery" body="Extended endurance powers full-day listening with confident reserve." />
+                </div>
+            </section>
+
+            <section style={{ maxWidth: 1180, margin: "0 auto", padding: "20px clamp(18px,4vw,60px) 20px" }}>
+                <div className="dualGrid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 20 }}>
+                    <div style={{ border: "1px solid rgba(255,255,255,.14)", borderRadius: 20, padding: 22, background: "rgba(255,255,255,.03)", transition: "background .35s ease, border-color .35s ease" }}>
+                        <h2 style={{ margin: 0, fontSize: "clamp(28px,4.5vw,44px)", letterSpacing: "-.04em" }}>Technical Specifications</h2>
+                        <div style={{ marginTop: 8 }}>
+                            <SpecificationItem value="40 mm" label="Custom drivers" />
+                            <SpecificationItem value="38 hrs" label="Battery life" />
+                            <SpecificationItem value="4 microphones" label="Voice isolation" />
+                            <SpecificationItem value="32-bit" label="High-resolution audio" />
+                            <SpecificationItem value="< 1%" label="Distortion" />
+                            <SpecificationItem value="Bluetooth 5.4" label="Wireless standard" />
+                        </div>
+                    </div>
+                    <RatingPanel accent={primaryAccent} reducedMotion={reducedMotion || isStatic} />
+                </div>
+            </section>
+
+            <section style={{ maxWidth: 1180, margin: "0 auto", padding: "12px clamp(18px,4vw,60px) 40px" }}>
+                <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,.14)", padding: "clamp(18px,4vw,28px)", background: "rgba(255,255,255,.03)", transition: "background .35s ease, border-color .35s ease" }}>
+                    <h2 style={{ margin: 0, fontSize: "clamp(28px,4.5vw,48px)", letterSpacing: "-.04em" }}>Made for the hours that matter.</h2>
+                    <p style={{ margin: "10px 0 0", maxWidth: 740, color: "#AFB7C3", lineHeight: 1.6 }}>
+                        Built for long listening arcs—morning focus blocks, late-night mixes, and travel in between. Comfort-first ergonomics, immersive driver tuning, and intelligent ANC keep you in the sound, not in the strain.
+                    </p>
+                </div>
+            </section>
+
+            <section style={{ maxWidth: 1180, margin: "0 auto", padding: "0 clamp(18px,4vw,60px) clamp(30px,6vw,72px)" }}>
+                <div style={{ position: "relative", borderRadius: 24, border: "1px solid rgba(255,255,255,.14)", padding: "clamp(20px,5vw,36px)", overflow: "hidden", background: "rgba(255,255,255,.03)", transition: "background .35s ease, border-color .35s ease" }}>
+                    <div style={{ position: "absolute", right: -60, bottom: -120, width: 360, height: 360, borderRadius: "50%", border: "28px solid rgba(255,255,255,.04)" }} />
+                    <h2 style={{ position: "relative", margin: 0, fontSize: "clamp(30px,5vw,52px)", letterSpacing: "-.05em" }}>Stay in your own frequency.</h2>
+                    <div style={{ position: "relative", marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <CTAButton accent={primaryAccent} label="Explore Auralis One" ariaLabel="Reserve Auralis One now" />
+                        <CTAButton secondary accent={primaryAccent} label="View specifications" ariaLabel="Compare Auralis models" />
+                    </div>
+                </div>
+            </section>
+
+            <style>{`
+                .auralis-launch * { box-sizing: border-box; }
+                .auralis-launch button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+                .auralis-launch button:hover { filter: brightness(1.08); }
+                .auralis-launch button:active { transform: translateY(1px) scale(.985); }
+                @media (max-width: 920px) {
+                    .auralis-launch .heroGrid, .auralis-launch .dualGrid { grid-template-columns: 1fr !important; }
+                    .auralis-launch .featureGrid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+                }
+                @media (max-width: 560px) {
+                    .auralis-launch .featureGrid { grid-template-columns: 1fr !important; }
+                }
+            `}</style>
+        </main>
+    )
+}
+
+addPropertyControls(HeadphoneShowcase, {
+    minHeight: {
+        type: ControlType.String,
+        title: "Min Height",
+        defaultValue: "100vh",
+    },
+    primaryAccent: {
+        type: ControlType.Color,
+        title: "Accent",
+        defaultValue: "#6D7CFF",
+    },
+    theme: {
+        type: ControlType.Enum,
+        title: "Theme",
+        defaultValue: "Nocturne",
+        options: ["Nocturne", "Arctic"],
+    },
+})
